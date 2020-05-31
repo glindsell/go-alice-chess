@@ -66,13 +66,6 @@ func (g *Game) StandardMovesB(first bool) []*Move {
 						return moves
 					}
 				}
-				// TODO: Add back in
-				// add tags
-				// filter out moves that put king into check
-				/*moves = append(moves, m)
-				if first {
-					return moves
-				}*/
 			}
 		}
 	}
@@ -123,13 +116,6 @@ func (g *Game) StandardMovesA(first bool) []*Move {
 						return moves
 					}
 				}
-				// TODO: Add back in
-				// add tags
-				// filter out moves that put king into check
-				/*moves = append(moves, m)
-				if first {
-					return moves
-				}*/
 			}
 		}
 	}

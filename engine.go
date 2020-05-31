@@ -22,6 +22,257 @@ const (
 	bbRank8 bitboard = 255
 )
 
+func (g *Game) StandardMovesB(first bool) []*Move {
+	// compute allowed destination bitboard
+	bbAllowedB := ^g.Pos2.board.whiteSqs
+	bbAllowedA := ^(g.Pos1.board.whiteSqs | g.Pos1.board.blackSqs)
+	if g.Pos1.Turn() == Black {
+		bbAllowedB = ^g.Pos2.board.blackSqs
+		bbAllowedA = ^(g.Pos1.board.whiteSqs | g.Pos1.board.blackSqs)
+	}
+	moves := []*Move{}
+	// iterate through pieces to find possible moves
+	for _, p := range allPieces {
+		if g.Pos1.Turn() != p.Color() {
+			continue
+		}
+		// iterate through possible starting squares for piece
+		s1BB := g.Pos2.board.bbForPiece(p)
+		if s1BB == 0 {
+			continue
+		}
+		for s1 := 0; s1 < numOfSquaresInBoard; s1++ {
+			if s1BB&bbForSquare(Square(s1)) == 0 {
+				continue
+			}
+			// iterate through possible destination squares for piece
+			s2BB := bbForPossibleMoves(g.Pos2, p.Type(), Square(s1)) & bbAllowedA & bbAllowedB
+			if s2BB == 0 {
+				continue
+			}
+			for s2 := 0; s2 < numOfSquaresInBoard; s2++ {
+				if s2BB&bbForSquare(Square(s2)) == 0 {
+					continue
+				}
+				// TODO: Add back in
+				// add promotions if pawn on promo square
+				m := &Move{s1: Square(s1), s2: Square(s2)}
+				addTags(m, g.Pos1)
+				addTags(m, g.Pos2)
+				// filter out moves that put king into check
+				if !m.HasTag(inCheck) {
+					moves = append(moves, m)
+					if first {
+						return moves
+					}
+				}
+			}
+		}
+	}
+	return moves
+}
+
+func (g *Game) StandardMovesA(first bool) []*Move {
+	// compute allowed destination bitboard
+	bbAllowedA := ^g.Pos1.board.whiteSqs
+	bbAllowedB := ^(g.Pos2.board.whiteSqs | g.Pos2.board.blackSqs)
+	if g.Pos1.Turn() == Black {
+		bbAllowedA = ^g.Pos1.board.blackSqs
+		bbAllowedB = ^(g.Pos2.board.whiteSqs | g.Pos2.board.blackSqs)
+	}
+	moves := []*Move{}
+	// iterate through pieces to find possible moves
+	for _, p := range allPieces {
+		if g.Pos1.Turn() != p.Color() {
+			continue
+		}
+		// iterate through possible starting squares for piece
+		s1BB := g.Pos1.board.bbForPiece(p)
+		if s1BB == 0 {
+			continue
+		}
+		for s1 := 0; s1 < numOfSquaresInBoard; s1++ {
+			if s1BB&bbForSquare(Square(s1)) == 0 {
+				continue
+			}
+			// iterate through possible destination squares for piece
+			s2BB := bbForPossibleMoves(g.Pos1, p.Type(), Square(s1)) & bbAllowedA & bbAllowedB
+			if s2BB == 0 {
+				continue
+			}
+			for s2 := 0; s2 < numOfSquaresInBoard; s2++ {
+				if s2BB&bbForSquare(Square(s2)) == 0 {
+					continue
+				}
+				// TODO: Add back in
+				// add promotions if pawn on promo square
+				m := &Move{s1: Square(s1), s2: Square(s2)}
+				addTags(m, g.Pos1)
+				addTags(m, g.Pos2)
+				// filter out moves that put king into check
+				if !m.HasTag(inCheck) {
+					moves = append(moves, m)
+					if first {
+						return moves
+					}
+				}
+			}
+		}
+	}
+	return moves
+}
+
+func addTags(m *Move, pos *Position) {
+	p := pos.board.Piece(m.s1)
+	if pos.board.isOccupied(m.s2) {
+		m.addTag(Capture)
+	} else if m.s2 == pos.enPassantSquare && p.Type() == Pawn {
+		m.addTag(EnPassant)
+	}
+	// determine if in check after move (makes move invalid)
+	cp := pos.copy()
+	cp.board.update(m)
+	if isInCheck(cp) {
+		m.addTag(inCheck)
+	}
+	// determine if opponent in check after move
+	cp.turn = cp.turn.Other()
+	if isInCheck(cp) {
+		m.addTag(Check)
+	}
+}
+
+func isInCheck(pos *Position) bool {
+	kingSq := pos.board.whiteKingSq
+	if pos.Turn() == Black {
+		kingSq = pos.board.blackKingSq
+	}
+	// king should only be missing in tests / examples
+	if kingSq == NoSquare {
+		return false
+	}
+	return squaresAreAttacked(pos, kingSq)
+}
+
+func squaresAreAttacked(pos *Position, sqs ...Square) bool {
+	otherColor := pos.Turn().Other()
+	occ := ^pos.board.emptySqs
+	for _, sq := range sqs {
+		// hot path check to see if attack vector is possible
+		s2BB := pos.board.blackSqs
+		if pos.Turn() == Black {
+			s2BB = pos.board.whiteSqs
+		}
+		if ((diaAttack(occ, sq)|hvAttack(occ, sq))&s2BB)|(bbKnightMoves[sq]&s2BB) == 0 {
+			continue
+		}
+		// check queen attack vector
+		queenBB := pos.board.bbForPiece(getPiece(Queen, otherColor))
+		bb := (diaAttack(occ, sq) | hvAttack(occ, sq)) & queenBB
+		if bb != 0 {
+			return true
+		}
+		// check rook attack vector
+		rookBB := pos.board.bbForPiece(getPiece(Rook, otherColor))
+		bb = hvAttack(occ, sq) & rookBB
+		if bb != 0 {
+			return true
+		}
+		// check bishop attack vector
+		bishopBB := pos.board.bbForPiece(getPiece(Bishop, otherColor))
+		bb = diaAttack(occ, sq) & bishopBB
+		if bb != 0 {
+			return true
+		}
+		// check knight attack vector
+		knightBB := pos.board.bbForPiece(getPiece(Knight, otherColor))
+		bb = bbKnightMoves[sq] & knightBB
+		if bb != 0 {
+			return true
+		}
+		// check pawn attack vector
+		if pos.Turn() == White {
+			capRight := (pos.board.bbBlackPawn & ^bbFileH & ^bbRank1) << 7
+			capLeft := (pos.board.bbBlackPawn & ^bbFileA & ^bbRank1) << 9
+			bb = (capRight | capLeft) & bbForSquare(sq)
+			if bb != 0 {
+				return true
+			}
+		} else {
+			capRight := (pos.board.bbWhitePawn & ^bbFileH & ^bbRank8) >> 9
+			capLeft := (pos.board.bbWhitePawn & ^bbFileA & ^bbRank8) >> 7
+			bb = (capRight | capLeft) & bbForSquare(sq)
+			if bb != 0 {
+				return true
+			}
+		}
+		// check king attack vector
+		kingBB := pos.board.bbForPiece(getPiece(King, otherColor))
+		bb = bbKingMoves[sq] & kingBB
+		if bb != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func diaAttack(occupied bitboard, sq Square) bitboard {
+	pos := bbForSquare(sq)
+	dMask := bbDiagonals[sq]
+	adMask := bbAntiDiagonals[sq]
+	return linearAttack(occupied, pos, dMask) | linearAttack(occupied, pos, adMask)
+}
+
+func hvAttack(occupied bitboard, sq Square) bitboard {
+	pos := bbForSquare(sq)
+	rankMask := bbRanks[Square(sq).Rank()]
+	fileMask := bbFiles[Square(sq).File()]
+	return linearAttack(occupied, pos, rankMask) | linearAttack(occupied, pos, fileMask)
+}
+
+func linearAttack(occupied, pos, mask bitboard) bitboard {
+	oInMask := occupied & mask
+	return ((oInMask - 2*pos) ^ (oInMask.Reverse() - 2*pos.Reverse()).Reverse()) & mask
+}
+
+func pawnMoves(pos *Position, sq Square) bitboard {
+	bb := bbForSquare(sq)
+	var bbEnPassant bitboard
+	if pos.enPassantSquare != NoSquare {
+		bbEnPassant = bbForSquare(pos.enPassantSquare)
+	}
+	if pos.Turn() == White {
+		capRight := ((bb & ^bbFileH & ^bbRank8) >> 9) & (pos.board.blackSqs | bbEnPassant)
+		capLeft := ((bb & ^bbFileA & ^bbRank8) >> 7) & (pos.board.blackSqs | bbEnPassant)
+		upOne := ((bb & ^bbRank8) >> 8) & pos.board.emptySqs
+		upTwo := ((upOne & bbRank3) >> 8) & pos.board.emptySqs
+		return capRight | capLeft | upOne | upTwo
+	}
+	capRight := ((bb & ^bbFileH & ^bbRank1) << 7) & (pos.board.whiteSqs | bbEnPassant)
+	capLeft := ((bb & ^bbFileA & ^bbRank1) << 9) & (pos.board.whiteSqs | bbEnPassant)
+	upOne := ((bb & ^bbRank1) << 8) & pos.board.emptySqs
+	upTwo := ((upOne & bbRank6) << 8) & pos.board.emptySqs
+	return capRight | capLeft | upOne | upTwo
+}
+
+func bbForPossibleMoves(pos *Position, pt PieceType, sq Square) bitboard {
+	switch pt {
+	case King:
+		return bbKingMoves[sq]
+	case Queen:
+		return diaAttack(^pos.board.emptySqs, sq) | hvAttack(^pos.board.emptySqs, sq)
+	case Rook:
+		return hvAttack(^pos.board.emptySqs, sq)
+	case Bishop:
+		return diaAttack(^pos.board.emptySqs, sq)
+	case Knight:
+		return bbKnightMoves[sq]
+	case Pawn:
+		return pawnMoves(pos, sq)
+	}
+	return bitboard(0)
+}
+
 // TODO make method on Square
 func bbForSquare(sq Square) bitboard {
 	return bbSquares[sq]

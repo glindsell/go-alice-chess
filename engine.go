@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 type engine struct{}
 
 const (
@@ -57,8 +59,7 @@ func (g *Game) StandardMovesB(first bool) []*Move {
 				// TODO: Add back in
 				// add promotions if pawn on promo square
 				m := &Move{s1: Square(s1), s2: Square(s2)}
-				addTags(m, g.Pos1)
-				addTags(m, g.Pos2)
+				g.AddTagsB(m)
 				// filter out moves that put king into check
 				if !m.HasTag(inCheck) {
 					moves = append(moves, m)
@@ -107,8 +108,8 @@ func (g *Game) StandardMovesA(first bool) []*Move {
 				// TODO: Add back in
 				// add promotions if pawn on promo square
 				m := &Move{s1: Square(s1), s2: Square(s2)}
-				addTags(m, g.Pos1)
-				addTags(m, g.Pos2)
+				//fmt.Println(m)
+				g.AddTagsA(m)
 				// filter out moves that put king into check
 				if !m.HasTag(inCheck) {
 					moves = append(moves, m)
@@ -122,30 +123,101 @@ func (g *Game) StandardMovesA(first bool) []*Move {
 	return moves
 }
 
-func addTags(m *Move, pos *Position) {
-	p := pos.board.Piece(m.s1)
-	if pos.board.isOccupied(m.s2) {
+func (g *Game) AddTagsB(m *Move) {
+	/*p := g.Pos2.board.Piece(m.s1)
+	//fmt.Println(p)
+	if g.Pos2.board.isOccupied(m.s2) {
 		m.addTag(Capture)
-	} else if m.s2 == pos.enPassantSquare && p.Type() == Pawn {
+		//fmt.Println("Capture: ", m.HasTag(Capture))
+	} else if m.s2 == g.Pos2.enPassantSquare && p.Type() == Pawn {
 		m.addTag(EnPassant)
-	}
+		//fmt.Println(m.HasTag(EnPassant))
+	}*/
 	// determine if in check after move (makes move invalid)
-	cp := pos.copy()
-	cp.board.update(m)
-	if isInCheck(cp) {
+	cp1 := g.Pos2.copy()
+	fmt.Println(cp1.Board().Draw())
+	cp2 := g.Pos1.copy()
+	fmt.Println(cp2.Board().Draw())
+	cp1.board.update(m)
+	fmt.Println(cp1.Board().Draw())
+	if isInCheck(cp1) {
 		m.addTag(inCheck)
+		//fmt.Println("In Check: ", m.HasTag(inCheck))
+	} else {
+		s1BB := bbForSquare(m.s1)
+		p1 := g.Pos2.board.Piece(m.s1)
+		fmt.Println("Piece: ", p1)
+		bb2 := g.Pos1.board.bbForPiece(p1)
+		fmt.Printf("BB2: %b", bb2)
+		cp2.board.setBBForPiece(p1, (bb2 | s1BB))
+		m1 := &Move{s1: NoSquare, s2: m.s1}
+		cp2.board.calcConvienceBBs(m1)
+		fmt.Println(cp1.Board().Draw())
+		cp2.board.update(m)
+		fmt.Println(cp2.Board().Draw())
+		if isInCheck(cp2) {
+			m.addTag(inCheck)
+		}
+		m.HasTag(inCheck)
 	}
+	fmt.Println("Move: ", m, "In Check: ", m.HasTag(inCheck))
 	// determine if opponent in check after move
-	cp.turn = cp.turn.Other()
-	if isInCheck(cp) {
+	/*cp2.turn = cp2.turn.Other()
+	if isInCheck(cp2) {
 		m.addTag(Check)
+	}*/
+}
+
+func (g *Game) AddTagsA(m *Move) {
+	/*p := g.Pos1.board.Piece(m.s1)
+	//fmt.Println(p)
+	if g.Pos1.board.isOccupied(m.s2) {
+		m.addTag(Capture)
+		//fmt.Println("Capture: ", m.HasTag(Capture))
+	} else if m.s2 == g.Pos1.enPassantSquare && p.Type() == Pawn {
+		m.addTag(EnPassant)
+		//fmt.Println(m.HasTag(EnPassant))
+	}*/
+	// determine if in check after move (makes move invalid)
+	cp1 := g.Pos1.copy()
+	fmt.Println(cp1.Board().Draw())
+	cp2 := g.Pos2.copy()
+	fmt.Println(cp2.Board().Draw())
+	cp1.board.update(m)
+	if isInCheck(cp1) {
+		m.addTag(inCheck)
+		//fmt.Println("In Check: ", m.HasTag(inCheck))
+	} else {
+		s1BB := bbForSquare(m.s1)
+		p1 := g.Pos1.board.Piece(m.s1)
+		fmt.Println("Piece: ", p1)
+		bb2 := g.Pos2.board.bbForPiece(p1)
+		fmt.Printf("BB2: %b", bb2)
+		cp2.board.setBBForPiece(p1, (bb2 | s1BB))
+		m1 := &Move{s1: NoSquare, s2: m.s1}
+		cp2.board.calcConvienceBBs(m1)
+		fmt.Println(cp1.Board().Draw())
+		cp2.board.update(m)
+		fmt.Println(cp2.Board().Draw())
+		if isInCheck(cp2) {
+			m.addTag(inCheck)
+		}
 	}
+	fmt.Println("Move: ", m, "In Check: ", m.HasTag(inCheck))
+	// determine if opponent in check after move
+	/*cp2.turn = cp2.turn.Other()
+	if isInCheck(cp2) {
+		m.addTag(Check)
+	}*/
 }
 
 func isInCheck(pos *Position) bool {
 	kingSq := pos.board.whiteKingSq
+	fmt.Println("White King Sq: ", kingSq)
+	fmt.Println("Turn: ", pos.Turn())
 	if pos.Turn() == Black {
 		kingSq = pos.board.blackKingSq
+		fmt.Println("Black KingSq: ", kingSq)
 	}
 	// king should only be missing in tests / examples
 	if kingSq == NoSquare {

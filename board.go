@@ -60,7 +60,7 @@ func (b *Board) SquareMap() map[Square]Piece {
 
 // Draw returns visual representation of the board useful for debugging.
 func (b *Board) Draw() string {
-	s := "\n A B C D E F G H\n"
+	s := ""
 	for r := 7; r >= 0; r-- {
 		s += Rank(r).String()
 		for f := 0; f < numOfSquaresInRow; f++ {
@@ -74,6 +74,7 @@ func (b *Board) Draw() string {
 		}
 		s += "\n"
 	}
+	s += " A B C D E F G H\n"
 	return s
 }
 
@@ -221,22 +222,16 @@ func (b *Board) calcConvienceBBs(m *Move) {
 	b.whiteSqs = whiteSqs
 	b.blackSqs = blackSqs
 	b.emptySqs = emptySqs
-	if m == nil {
-		b.whiteKingSq = NoSquare
-		b.blackKingSq = NoSquare
+	b.whiteKingSq = NoSquare
+	b.blackKingSq = NoSquare
 
-		for sq := 0; sq < numOfSquaresInBoard; sq++ {
-			sqr := Square(sq)
-			if b.bbWhiteKing.Occupied(sqr) {
-				b.whiteKingSq = sqr
-			} else if b.bbBlackKing.Occupied(sqr) {
-				b.blackKingSq = sqr
-			}
+	for sq := 0; sq < numOfSquaresInBoard; sq++ {
+		sqr := Square(sq)
+		if b.bbWhiteKing.Occupied(sqr) {
+			b.whiteKingSq = sqr
+		} else if b.bbBlackKing.Occupied(sqr) {
+			b.blackKingSq = sqr
 		}
-	} else if m.s1 == b.whiteKingSq {
-		b.whiteKingSq = m.s2
-	} else if m.s1 == b.blackKingSq {
-		b.blackKingSq = m.s2
 	}
 }
 

@@ -57,8 +57,11 @@ func (g *Game) StandardMovesB(first bool) []*Move {
 				// TODO: Add back in
 				// add promotions if pawn on promo square
 				m := &Move{s1: Square(s1), s2: Square(s2)}
-				addTags(m, g.Pos1)
-				addTags(m, g.Pos2)
+				addTagsCapture(m, g.Pos2)
+				cp := g.copy()
+				cp.UpdateB(m)
+				addTagsCheck(m, cp.Pos1)
+				addTagsCheck(m, cp.Pos2)
 				// filter out moves that put king into check
 				if !m.HasTag(inCheck) {
 					moves = append(moves, m)
@@ -107,8 +110,11 @@ func (g *Game) StandardMovesA(first bool) []*Move {
 				// TODO: Add back in
 				// add promotions if pawn on promo square
 				m := &Move{s1: Square(s1), s2: Square(s2)}
-				addTags(m, g.Pos1)
-				addTags(m, g.Pos2)
+				addTagsCapture(m, g.Pos1)
+				cp := g.copy()
+				cp.UpdateA(m)
+				addTagsCheck(m, cp.Pos1)
+				addTagsCheck(m, cp.Pos2)
 				// filter out moves that put king into check
 				if !m.HasTag(inCheck) {
 					moves = append(moves, m)
@@ -122,22 +128,23 @@ func (g *Game) StandardMovesA(first bool) []*Move {
 	return moves
 }
 
-func addTags(m *Move, pos *Position) {
+func addTagsCapture(m *Move, pos *Position) {
 	p := pos.board.Piece(m.s1)
 	if pos.board.isOccupied(m.s2) {
 		m.addTag(Capture)
 	} else if m.s2 == pos.enPassantSquare && p.Type() == Pawn {
 		m.addTag(EnPassant)
 	}
+}
+
+func addTagsCheck(m *Move, pos *Position) {
 	// determine if in check after move (makes move invalid)
-	cp := pos.copy()
-	cp.board.update(m)
-	if isInCheck(cp) {
+	if isInCheck(pos) {
 		m.addTag(inCheck)
 	}
 	// determine if opponent in check after move
-	cp.turn = cp.turn.Other()
-	if isInCheck(cp) {
+	pos.turn = pos.turn.Other()
+	if isInCheck(pos) {
 		m.addTag(Check)
 	}
 }

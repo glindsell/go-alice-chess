@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"time"
 )
 
@@ -45,13 +46,17 @@ func main() {
 	for i := 0; i < 1000; i++ {
 		fmt.Printf("Move Count: %v\n", g.Pos1.moveCount)
 		fmt.Printf("Turn: %v\n", g.Pos1.Turn().Name())
-		g.MoveRand()
+		err := g.MoveRand()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(0)
+		}
 		fmt.Printf("\n --- Board A ---\n%v\n", g.Pos1.Board().Draw())
 		fmt.Printf(" --- Board B ---\n%v\n *--------------*\n", g.Pos2.Board().Draw())
 	}
 }
 
-func (g *Game) MoveRand() {
+func (g *Game) MoveRand() error {
 	standardMoves := []*Move{}
 	standardMovesA := g.StandardMovesA(false)
 	fmt.Printf("Moves A: %v\n", standardMovesA)
@@ -60,24 +65,29 @@ func (g *Game) MoveRand() {
 	standardMoves = append(standardMoves, standardMovesA...)
 	standardMoves = append(standardMoves, standardMovesB...)
 	board := ""
+	var move *Move
 	if len(standardMoves) > 0 {
 		rand.Seed(time.Now().UnixNano())
 		r := rand.Intn(len(standardMoves))
+		move = standardMoves[r]
 		if r < len(standardMovesA) {
-			g.UpdateA(standardMoves[r])
+			g.UpdateA(move)
 			board = "A"
 		} else {
-			g.UpdateB(standardMoves[r])
+			g.UpdateB(move)
 			board = "B"
 		}
-		fmt.Printf("Chosen: %v\nBoard: %v\n", standardMoves[r], board)
+		fmt.Printf("Chosen: %v\nBoard: %v\n", move, board)
 		g.Pos1.turn = g.Pos1.turn.Other()
 		g.Pos2.turn = g.Pos2.turn.Other()
 		g.Pos1.moveCount++
 		g.Pos2.moveCount++
+	} else if !(g.Pos1.inCheck || g.Pos2.inCheck) {
+		return fmt.Errorf("No possible moves, stalemate")
 	} else {
-		panic("No possible moves")
+		return fmt.Errorf("Checkmate")
 	}
+	return nil
 }
 
 func (g *Game) UpdateB(m *Move) {
@@ -102,6 +112,7 @@ func (g *Game) UpdateB(m *Move) {
 	g.Pos1.board.setBBForPiece(p1, (bb | s2BB))
 	g.Pos2.board.calcConvienceBBs(m)
 	g.Pos1.board.calcConvienceBBs(m)
+	g.Pos2.inCheck = m.HasTag(Check)
 }
 
 func (g *Game) UpdateA(m *Move) {
@@ -126,4 +137,5 @@ func (g *Game) UpdateA(m *Move) {
 	g.Pos2.board.setBBForPiece(p1, (bb | s2BB))
 	g.Pos1.board.calcConvienceBBs(m)
 	g.Pos2.board.calcConvienceBBs(m)
+	g.Pos1.inCheck = m.HasTag(Check)
 }

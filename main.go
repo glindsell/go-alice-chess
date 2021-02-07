@@ -82,6 +82,8 @@ func (g *Game) MoveRand() error {
 		g.Pos2.turn = g.Pos2.turn.Other()
 		g.Pos1.moveCount++
 		g.Pos2.moveCount++
+		// Here we currently evaluate both boards for check - this is redundant as the same info is held on both boards.
+		// TODO: move inCheck flag to Game level, or work out some different abstraction to remove this duplication.
 	} else if !(g.Pos1.inCheck || g.Pos2.inCheck) {
 		return fmt.Errorf("No possible moves, stalemate")
 	} else {
@@ -112,6 +114,7 @@ func (g *Game) UpdateB(m *Move) {
 	g.Pos1.board.setBBForPiece(p1, (bb | s2BB))
 	g.Pos2.board.calcConvienceBBs(m)
 	g.Pos1.board.calcConvienceBBs(m)
+	g.Pos1.inCheck = m.HasTag(Check)
 	g.Pos2.inCheck = m.HasTag(Check)
 }
 
@@ -138,4 +141,5 @@ func (g *Game) UpdateA(m *Move) {
 	g.Pos1.board.calcConvienceBBs(m)
 	g.Pos2.board.calcConvienceBBs(m)
 	g.Pos1.inCheck = m.HasTag(Check)
+	g.Pos2.inCheck = m.HasTag(Check)
 }
